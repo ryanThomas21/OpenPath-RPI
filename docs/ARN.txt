@@ -1,0 +1,13 @@
+ARN: area right now
+we're doing the radius 0.1 miles around carnegie (photo in proposal)
+buildings inside:
+- Carnegie
+- Walker Lab
+- Sage Lab
+- Pittsburg
+- EMPAC
+- West Hall
+- Amos Eaton
+- Lally
+- Library
+- VCC

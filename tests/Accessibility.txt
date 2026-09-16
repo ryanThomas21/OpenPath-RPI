@@ -1,0 +1,29 @@
+In accordance with Section 508 of the Rehabilitation Act of 1973, our
+information must be comparably accessible and usable between disabled 
+and able-bodied members of the public. 
+This list will also take inspiration from the Web Content Accessibility
+Guidelines (WCAG) 2 requirements, despite our project not being an official
+government project.
+Reference website for 508 Guidelines: 
+https://www.ada.gov/resources/small-entity-compliance-guide/#1-archived-web-content
+Reference website for WCAG 2: 
+https://www.w3.org/WAI/WCAG22/quickref/
+----------------Ease of information access----------------------------------
+We will ensure that the Google read-aloud functions properly on our website.
+This includes a verbal transcription of the optimal route determined by our
+program.
+Visuals should use text cues alongside color cues in a consistent,
+non-conditional manner.
+Ensure proper color contrast ratio. A minimum of 4.5:1 is acceptable, with
+lower exceptions dealing with large-scale text (18 point or 
+14 point bold text on client end. Recommend avoiding due to this nebulous
+nature regarding a normally stable color palette). Proper color contrast
+ratio checkers can be found online.
+Our website should also be able to scale reasonably with page zoom and
+text-size adjustment features for computer and mobile devices respectively.
+All user input must be given a title describing its purpose.
+All site functions must be accessible without a mouse.
+If needed, employ a programmatically determined website structure. That is,
+any information that needs to be given in a specific order must be processed
+by screen readers in that order. This can be accomplished through markup
+language or through implementing an accessibility API.

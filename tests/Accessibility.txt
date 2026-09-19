@@ -8,22 +8,39 @@ Reference website for 508 Guidelines:
 https://www.ada.gov/resources/small-entity-compliance-guide/#1-archived-web-content
 Reference website for WCAG 2: 
 https://www.w3.org/WAI/WCAG22/quickref/
-----------------Ease of information access----------------------------------
-We will ensure that the Google read-aloud functions properly on our website.
+----------------Ease of information access------------------------------------
+- We will ensure that the Google read-aloud functions properly on our website.
 This includes a verbal transcription of the optimal route determined by our
 program.
-Visuals should use text cues alongside color cues in a consistent,
-non-conditional manner.
-Ensure proper color contrast ratio. A minimum of 4.5:1 is acceptable, with
-lower exceptions dealing with large-scale text (18 point or 
-14 point bold text on client end. Recommend avoiding due to this nebulous
-nature regarding a normally stable color palette). Proper color contrast
-ratio checkers can be found online.
-Our website should also be able to scale reasonably with page zoom and
-text-size adjustment features for computer and mobile devices respectively.
-All user input must be given a title describing its purpose.
-All site functions must be accessible without a mouse.
-If needed, employ a programmatically determined website structure. That is,
-any information that needs to be given in a specific order must be processed
-by screen readers in that order. This can be accomplished through markup
-language or through implementing an accessibility API.
+- Visuals should use text cues alongside color cues in a consistent, non-
+conditional manner.
+- Proper alternative text should be available for all non-text content. This
+text should effectively convey all necessary information that the content would
+otherwise provide to the user.
+- Ensure proper color contrast ratio. A minimum of 4.5:1 is acceptable, with
+lower exceptions dealing with large-scale text (18 point or 14 point bold
+text on client end. Recommend avoiding exceptions due to this nebulous nature
+regarding a normally stable color palette). Proper color contrast ratio checkers
+can be found online.
+- Our website should also be able to scale reasonably with page zoom and
+text-size adjustment features for computer and mobile devices respectively. The
+ideal maximum page zoom is 200%.
+- All user input must be given a title describing its purpose.
+- All site functions must be accessible with keyboard alone. For example, the
+specification of disabilities/unusable traversal methods must be achievable
+without a mouse.
+- If needed/possible, employ a programmatically determined website structure.
+That is, any information that needs to be given in a specific order must be
+processed by screen readers in that order. This can be accomplished through
+markup language and Accessible Rich Internet Applications(ARIA). Only use ARIA
+if the behavior cannot be performed in base HTML.
+- Ensure that all instructions to press a certain button offer means of
+identifying said button without any knowledge of its shape, size, or relative
+position. Avoid terms like "the green button on the right", try "the button 
+that says 'go'".
+- Avoid flashing items on-screen (potential epileptic hazard).
+- If CAPTCHA is incorporated, provide modes for different disabilities.
+- If an error is detected, it should be identified and described to the user in text
+------------------------------------------------------------------------------
+Proper documentation will be required on how we account for disabilities.
+What parts of this checklist did we complete, what did we miss?

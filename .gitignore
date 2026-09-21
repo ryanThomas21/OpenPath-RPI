@@ -19,3 +19,6 @@ backend/staticfiles/
 # Editors
 .vscode/
 .idea/
+
+# Local-only notes (not shared with the team)
+docs/PLAN.md

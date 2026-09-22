@@ -37,6 +37,14 @@ export function bearingOf(dx, dy) {
   return (Math.atan2(dy, dx) * 180) / Math.PI + 90;
 }
 
+// Wraps an angle to (-180, 180] — the "which way did we turn" range.
+export function normalizeAngle(deg) {
+  let a = deg % 360;
+  if (a > 180) a -= 360;
+  if (a <= -180) a += 360;
+  return a;
+}
+
 // Walks a polyline by total-length fraction t (0..1), returning the
 // interpolated position and the compass bearing of the segment it's on —
 // the position/heading pair a turn-by-turn camera follows.

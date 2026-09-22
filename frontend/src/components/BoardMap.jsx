@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { BOARD_VIEWBOX, BUILDINGS, EDGES, JUNCTIONS, NODES } from '../data/board.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BOARD_VIEWBOX, BUILDINGS, EDGES, FEET_PER_UNIT, JUNCTIONS, NODES } from '../data/board.js';
 import { clamp, pathLength, pointsToPath, sampleAlongPath } from '../utils/geometry.js';
 import { BUILDING_FOOTPRINT, CITY_STREETS, PARK_BLOBS, TREE_CANOPY, WATER_PATH } from '../utils/mapDecor.js';
+import { buildManeuvers, currentInstruction } from '../utils/navigation.js';
 import { useBoardTransform } from '../hooks/useBoardTransform.js';
 import CompassControl, { COMPASS_CENTER } from './CompassControl.jsx';
+import InstructionBanner from './InstructionBanner.jsx';
 import ZoomControls from './ZoomControls.jsx';
+
+// How often the instruction countdown re-renders. The camera itself updates
+// every frame via direct DOM writes; this text doesn't need to, so it goes
+// through ordinary React state at a much cheaper cadence.
+const INSTRUCTION_UPDATE_MS = 150;
 
 // Turn-by-turn camera: closer than any overview fit, puck held low so most
 // of the screen shows the path ahead — Apple Maps' walking-nav framing.
@@ -52,13 +59,16 @@ function Pin({ x, y, kind, label, counterRotate, billboardRef }) {
   );
 }
 
-export default function BoardMap({ route, startId, endId, navigating }) {
+export default function BoardMap({ route, startId, endId, navigating, destinationName }) {
   const svgRef = useRef(null);
   const groupRef = useRef(null);
   const routePathRef = useRef(null);
   const puckRef = useRef(null);
   const pinBillboardRefs = useRef({});
   const compassNeedleRef = useRef(null);
+  const [instruction, setInstruction] = useState(null);
+
+  const maneuvers = useMemo(() => (route ? buildManeuvers(route.points) : []), [route]);
 
   const getViewportSize = useCallback(() => {
     const el = svgRef.current;
@@ -82,7 +92,7 @@ export default function BoardMap({ route, startId, endId, navigating }) {
   }, [getViewportSize]);
 
   const transform = useBoardTransform(getViewportSize, getSafeRect, groupRef);
-  const { current, panBy, zoomBy, setRotateImmediate, fitToWorldPoints, followPoint } = transform;
+  const { current, currentRef, panBy, zoomBy, setRotateImmediate, fitToWorldPoints, followPoint } = transform;
 
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -129,6 +139,7 @@ export default function BoardMap({ route, startId, endId, navigating }) {
     const totalLen = pathLength(route.points);
     const duration = clamp(totalLen * NAV_SECONDS_PER_UNIT, 8, 45);
     const start = performance.now();
+    let lastInstructionAt = 0;
 
     const frame = (now) => {
       const elapsed = (now - start) / 1000;
@@ -138,17 +149,34 @@ export default function BoardMap({ route, startId, endId, navigating }) {
       if (puckRef.current) {
         puckRef.current.setAttribute('transform', `translate(${pos.x} ${pos.y}) rotate(${heading})`);
       }
-      // The map group itself just rotated to -heading (via followPoint) by
-      // writing straight to the DOM, which never re-renders React — so
-      // anything billboarded against that rotation (pin labels, the compass
-      // needle) has to be counter-rotated here too, every frame, or it goes
-      // stale the moment navigation starts.
+      // The map group itself just rotated (via followPoint) by writing
+      // straight to the DOM, which never re-renders React — so anything
+      // billboarded against that rotation (pin labels, the compass needle)
+      // has to be counter-rotated here too, every frame, or it goes stale
+      // the moment navigation starts. Crucially this reads the map's own
+      // *actual, still-easing* rotation (currentRef), not the raw target
+      // heading — the camera eases into a turn more slowly than the puck's
+      // true heading changes, so billboarding against the target would
+      // make labels snap ahead of the map mid-turn instead of tracking it.
+      const liveRotate = currentRef.current.rotate;
       for (const el of Object.values(pinBillboardRefs.current)) {
-        if (el) el.setAttribute('transform', `rotate(${heading})`);
+        if (el) el.setAttribute('transform', `rotate(${-liveRotate})`);
       }
       if (compassNeedleRef.current) {
-        compassNeedleRef.current.setAttribute('transform', `rotate(${-heading} ${COMPASS_CENTER} ${COMPASS_CENTER})`);
+        compassNeedleRef.current.setAttribute('transform', `rotate(${liveRotate} ${COMPASS_CENTER} ${COMPASS_CENTER})`);
       }
+
+      // The turn banner's countdown text is ordinary React state — it's a
+      // handful of DOM nodes, not the whole map, so it doesn't need the
+      // imperative treatment above. Still throttled well below 60fps since
+      // a foot-by-foot countdown isn't perceptible anyway.
+      if (now - lastInstructionAt >= INSTRUCTION_UPDATE_MS || t >= 1) {
+        lastInstructionAt = now;
+        const traveledUnits = t * totalLen;
+        const next = currentInstruction(maneuvers, traveledUnits);
+        setInstruction(next ? { ...next, remaining: next.remaining * FEET_PER_UNIT } : null);
+      }
+
       if (t < 1) navRaf.current = requestAnimationFrame(frame);
       else navRaf.current = null;
     };
@@ -157,8 +185,9 @@ export default function BoardMap({ route, startId, endId, navigating }) {
     return () => {
       if (navRaf.current != null) cancelAnimationFrame(navRaf.current);
       navRaf.current = null;
+      setInstruction(null);
     };
-  }, [navigating, route, followPoint]);
+  }, [navigating, route, followPoint, currentRef, maneuvers]);
 
   // Leaving navigation: return to north-up and re-fit the overview.
   const wasNavigating = useRef(navigating);
@@ -337,6 +366,8 @@ export default function BoardMap({ route, startId, endId, navigating }) {
           )}
         </g>
       </svg>
+
+      {navigating && <InstructionBanner instruction={instruction} destinationName={destinationName} />}
 
       <div className="board-hud" data-no-pan>
         <ZoomControls onZoomIn={() => zoomBy(1.25)} onZoomOut={() => zoomBy(1 / 1.25)} />

@@ -5,7 +5,13 @@ import { boundsOf, clamp, lerp, rotateAroundPivot } from '../utils/geometry.js';
 const MIN_SCALE = 0.45;
 const MAX_SCALE = 3.2;
 const EASE = 0.12;
+// Rotate gets its own, slower ease. Position/scale settle in ~0.5s, which
+// suits a button click or a route fit; a turn-by-turn heading change at
+// that same rate reads as a snap-to instead of a camera swinging round —
+// slowing just the rotation makes turns read as a fluid pivot instead.
+const ROTATE_EASE = 0.045;
 const SETTLE_EPSILON = 0.0008;
+const EASE_BY_KEY = { tx: EASE, ty: EASE, scale: EASE, rotate: ROTATE_EASE };
 
 const DEFAULT_STATE = { tx: 0, ty: 0, scale: 1, rotate: 0 };
 
@@ -39,7 +45,7 @@ export function useBoardTransform(getViewportSize, getSafeRect, groupRef) {
     const t = target.current;
     let settled = true;
     for (const key of ['tx', 'ty', 'scale', 'rotate']) {
-      const next = lerp(c[key], t[key], EASE);
+      const next = lerp(c[key], t[key], EASE_BY_KEY[key]);
       if (Math.abs(next - t[key]) > SETTLE_EPSILON) settled = false;
       c[key] = next;
     }
@@ -152,6 +158,10 @@ export function useBoardTransform(getViewportSize, getSafeRect, groupRef) {
 
   return {
     current: current.current,
+    // The live ref itself, not just its value at this render — lets a
+    // caller's own rAF loop (the nav camera) read the actual, currently-
+    // eased rotation on every frame instead of a stale render-time snapshot.
+    currentRef: current,
     target: target.current,
     panBy,
     zoomBy,

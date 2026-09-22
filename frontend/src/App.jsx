@@ -32,7 +32,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <BoardMap route={route} startId={startId} endId={endId} navigating={navigating} />
+      <BoardMap route={route} startId={startId} endId={endId} navigating={navigating} destinationName={end?.name} />
       <RouteSummary
         route={route}
         destinationName={end?.name}

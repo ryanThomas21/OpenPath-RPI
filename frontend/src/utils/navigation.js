@@ -1,4 +1,5 @@
-import { bearingOf, normalizeAngle } from './geometry.js';
+import { normalizeAngle } from './geometry.js';
+import { bearingGeo, haversineFeet } from './geo.js';
 
 // Below this bend angle, a vertex reads as the path just easing around a
 // curve, not a maneuver a walker needs to be told about. Above it, the turn
@@ -16,19 +17,17 @@ function magnitudeOf(absDelta) {
 
 // Turns the resolved route's own polyline into a maneuver list: every real
 // bend, in order, plus a final arrival step — each stamped with its
-// distance from the start of the route (world units, same space as the
-// route's points).
+// distance in feet from the start of the route.
 export function buildManeuvers(points) {
   const distanceAt = [0];
   for (let i = 1; i < points.length; i += 1) {
-    const seg = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    distanceAt.push(distanceAt[i - 1] + seg);
+    distanceAt.push(distanceAt[i - 1] + haversineFeet(points[i - 1], points[i]));
   }
 
   const steps = [];
   for (let i = 1; i < points.length - 1; i += 1) {
-    const inHeading = bearingOf(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    const outHeading = bearingOf(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+    const inHeading = bearingGeo(points[i - 1], points[i]);
+    const outHeading = bearingGeo(points[i], points[i + 1]);
     const delta = normalizeAngle(outHeading - inHeading);
     const absDelta = Math.abs(delta);
     if (absDelta >= TURN_THRESHOLD_DEG) {

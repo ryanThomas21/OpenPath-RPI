@@ -1,4 +1,5 @@
 import { NODES, EDGES } from '../data/board.js';
+import { haversineFeet } from './geo.js';
 import { summarizeRoute } from './metrics.js';
 
 function buildAdjacency(allowStairs) {
@@ -6,9 +7,7 @@ function buildAdjacency(allowStairs) {
   for (const node of Object.keys(NODES)) adj.set(node, []);
   for (const edge of EDGES) {
     if (edge.stairs && !allowStairs) continue;
-    const a = NODES[edge.a];
-    const b = NODES[edge.b];
-    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const dist = haversineFeet(NODES[edge.a], NODES[edge.b]);
     adj.get(edge.a).push({ to: edge.b, dist, edge });
     adj.get(edge.b).push({ to: edge.a, dist, edge });
   }

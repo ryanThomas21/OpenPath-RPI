@@ -1,42 +1,36 @@
-// Placeholder geography for the ARN pilot area (~0.1mi around Carnegie).
-// Coordinates are an approximate, organic campus layout — not surveyed GPS —
-// arranged to read as a legible uphill walk from EMPAC (low, near the
-// Approach) up through the academic quad to the upper-campus buildings.
-// Swap for real geodata when it exists.
+// Real coordinates for the ARN pilot area (~0.1mi around Carnegie), looked
+// up from OpenStreetMap (Nominatim). Buildings are real; the walkway
+// junctions between them are still approximate placeholder waypoints (no
+// surveyed sidewalk data yet), placed at sensible midpoints between the
+// buildings they connect. Elevation is mock, authored to match the real
+// story of this campus: EMPAC sits low near the Approach/river, the
+// academic quad sits highest up the hill.
 
-export const BOARD_VIEWBOX = { width: 1200, height: 900 };
-export const BOARD_PIVOT = { x: 600, y: 450 };
-
-// Placeholder real-world scale: the ARN pilot's ~0.1mi (528ft) radius maps
-// onto the board's world units, so distance/time readouts are plausible
-// rather than raw schematic numbers. Swap alongside real geodata later.
-export const FEET_PER_UNIT = 1.2;
 export const WALK_SPEED_MPH = 2.5; // accessible walking pace, not average 3mph
 
-// Elevation is mock, authored to match the "uphill from EMPAC" story:
-// EMPAC sits low near the Approach, the academic quad sits highest.
 export const BUILDINGS = [
-  { id: 'carnegie', name: 'Carnegie', x: 600, y: 430, elevation: 58 },
-  { id: 'walker', name: 'Walker Lab', x: 740, y: 390, elevation: 60 },
-  { id: 'sage', name: 'Sage Lab', x: 860, y: 330, elevation: 66 },
-  { id: 'pittsburgh', name: 'Pittsburgh', x: 470, y: 360, elevation: 55 },
-  { id: 'empac', name: 'EMPAC', x: 260, y: 660, elevation: 0 },
-  { id: 'westhall', name: 'West Hall', x: 370, y: 560, elevation: 18 },
-  { id: 'amoseaton', name: 'Amos Eaton', x: 430, y: 480, elevation: 42 },
-  { id: 'lally', name: 'Lally', x: 790, y: 580, elevation: 48 },
-  { id: 'library', name: 'Library', x: 630, y: 540, elevation: 50 },
-  { id: 'vcc', name: 'VCC', x: 900, y: 470, elevation: 58 },
+  { id: 'carnegie', name: 'Carnegie', lat: 42.7304438, lng: -73.6831941, elevation: 58 },
+  { id: 'walker', name: 'Walker Lab', lat: 42.7308752, lng: -73.6825058, elevation: 60 },
+  { id: 'sage', name: 'Sage Lab', lat: 42.7308930, lng: -73.6816644, elevation: 66 },
+  { id: 'pittsburgh', name: 'Pittsburgh', lat: 42.7311570, lng: -73.6833192, elevation: 55 },
+  { id: 'empac', name: 'EMPAC', lat: 42.7288114, lng: -73.6838551, elevation: 0 },
+  { id: 'westhall', name: 'West Hall', lat: 42.7317090, lng: -73.6831067, elevation: 18 },
+  { id: 'amoseaton', name: 'Amos Eaton', lat: 42.7302055, lng: -73.6825717, elevation: 42 },
+  { id: 'lally', name: 'Lally', lat: 42.7300621, lng: -73.6819038, elevation: 48 },
+  { id: 'library', name: 'Library', lat: 42.7294564, lng: -73.6826452, elevation: 50 },
+  { id: 'vcc', name: 'VCC', lat: 42.7292341, lng: -73.6817738, elevation: 58 },
 ];
 
-// Waypoints: path junctions along the walkway network, not selectable.
+// Waypoints: path junctions along the walkway network, not selectable —
+// placed as midpoints between the real buildings they connect.
 export const JUNCTIONS = [
-  { id: 'j1', x: 520, y: 410, elevation: 50 },
-  { id: 'j2', x: 660, y: 420, elevation: 56 },
-  { id: 'j3', x: 800, y: 400, elevation: 62 },
-  { id: 'j4', x: 400, y: 500, elevation: 30 },
-  { id: 'j5', x: 560, y: 490, elevation: 54 },
-  { id: 'j6', x: 720, y: 510, elevation: 52 },
-  { id: 'j7', x: 330, y: 580, elevation: 8 },
+  { id: 'j1', lat: 42.7306021, lng: -73.6830283, elevation: 50 },
+  { id: 'j2', lat: 42.7306595, lng: -73.6828500, elevation: 56 },
+  { id: 'j3', lat: 42.7303341, lng: -73.6819813, elevation: 62 },
+  { id: 'j4', lat: 42.7309573, lng: -73.6828392, elevation: 30 },
+  { id: 'j5', lat: 42.7299501, lng: -73.6829197, elevation: 54 },
+  { id: 'j6', lat: 42.7295842, lng: -73.6821076, elevation: 52 },
+  { id: 'j7', lat: 42.7302602, lng: -73.6834809, elevation: 8 },
 ];
 
 const NODE_LIST = [...BUILDINGS, ...JUNCTIONS];

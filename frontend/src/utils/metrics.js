@@ -1,16 +1,16 @@
-import { FEET_PER_UNIT, NODES, WALK_SPEED_MPH } from '../data/board.js';
-import { pathLength } from './geometry.js';
+import { NODES, WALK_SPEED_MPH } from '../data/board.js';
+import { pathLengthFeet } from './geo.js';
 
 // A route is "steep" once its average grade crosses the ADA's own gentle-
 // ramp threshold (1:20, 5%) — a physically meaningful cutoff for this
 // product rather than an arbitrary number.
 const STEEP_GRADE = 0.05;
 
-// Distance, elevation, and time for a resolved route. Elevation and the
-// world-to-feet scale are placeholder data (see board.js); the shape of
-// this summary is what a real routing/elevation source would fill later.
+// Distance, elevation, and time for a resolved route. Distance is real
+// (haversine over real coordinates); elevation is still placeholder data
+// (see board.js) until a real elevation source is wired in.
 export function summarizeRoute(route) {
-  const distanceFt = pathLength(route.points) * FEET_PER_UNIT;
+  const distanceFt = pathLengthFeet(route.points);
 
   let gainFt = 0;
   let lossFt = 0;

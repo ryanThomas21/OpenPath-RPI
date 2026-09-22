@@ -11,35 +11,93 @@
   inset: 0;
   overflow: hidden;
   background: var(--map-ground);
-  touch-action: none;
-  cursor: grab;
-}
-.board-viewport:active {
-  cursor: grabbing;
+  /* Leaflet's own panes and controls use z-index up to 1000 internally
+     (popups 700, controls 1000). Without an explicit z-index here, this
+     wrapper never forms its own stacking context, so those values leak
+     straight past it and float above our search card, route summary, and
+     instruction banner (all z-index 5-30) regardless of DOM order. Giving
+     the viewport its own low z-index traps everything Leaflet does inside
+     it, so from the outside the whole map only ever counts as "z-index 1". */
+  z-index: 1;
 }
 
-.board-svg {
+.board-map {
+  /* Leaflet also sets position:relative on this element itself via inline
+     JS. The wrapper fix above stops Leaflet's z-index escaping past
+     .board-viewport, but the instruction banner and zoom HUD are its own
+     *siblings* of this element (not ancestors of it), so without a
+     stacking context on the map container itself, Leaflet's internal
+     panes still outrank those siblings directly — same bug, one layer in. */
+  z-index: 0;
   width: 100%;
   height: 100%;
-  display: block;
+  background: var(--map-ground);
+  font-family: var(--font-ui);
 }
 
-.board-group {
-  will-change: transform;
+/* Leaflet's own zoom/attribution chrome is replaced by our HUD and hidden
+   elsewhere; keep attribution (OSM requires it) but style it into the palette. */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: var(--ink-faint) !important;
+  font-size: 10.5px !important;
 }
 
-.footprints-shadow {
-  filter: drop-shadow(0 2px 1.5px rgba(20, 30, 45, 0.16));
+/* ---------- Building pins (Leaflet divIcons — plain DOM, not React) ---------- */
+
+.pin-icon-container {
+  background: transparent !important;
+  border: none !important;
 }
 
-.pins-shadow {
+.pin-icon-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
   filter: drop-shadow(0 2px 2px rgba(30, 40, 35, 0.35));
 }
 
-.route-shadow {
-  filter: drop-shadow(0 1.5px 2px rgba(26, 90, 58, 0.28));
+.pin-icon-svg {
+  display: block;
 }
 
+.pin-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  margin-bottom: 2px;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
+.pin-label-active {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.junction-dot-container {
+  background: transparent !important;
+  border: none !important;
+}
+.junction-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--map-accent);
+  border: 2px solid #ffffff;
+  filter: drop-shadow(0 1px 2px rgba(26, 90, 58, 0.3));
+}
+
+/* ---------- Nav puck ---------- */
+
+.nav-puck-container {
+  background: transparent !important;
+  border: none !important;
+}
 .nav-puck {
   filter: drop-shadow(0 2px 4px rgba(26, 115, 232, 0.45));
 }
@@ -59,25 +117,7 @@
   }
 }
 
-.pin-label {
-  font-size: 12.5px;
-  font-weight: 500;
-  fill: var(--ink-dim);
-  paint-order: stroke;
-  stroke: #ffffff;
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-.pin-label-active {
-  font-weight: 700;
-  fill: var(--ink);
-}
-
-.pin {
-  transition: transform 160ms var(--ease-board);
-}
-
-/* ---------- HUD: zoom + compass ---------- */
+/* ---------- HUD: zoom ---------- */
 
 .board-hud {
   position: absolute;
@@ -115,19 +155,6 @@
 .zoom-btn:hover {
   background: var(--map-field);
   color: var(--ink);
-}
-
-.compass-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--panel-bg);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(30, 35, 40, 0.18), 0 1px 2px rgba(30, 35, 40, 0.12);
-  touch-action: none;
 }
 
 /* ---------- Turn-by-turn instruction banner ---------- */

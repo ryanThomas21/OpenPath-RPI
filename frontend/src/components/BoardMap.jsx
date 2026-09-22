@@ -1,180 +1,164 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BOARD_VIEWBOX, BUILDINGS, EDGES, FEET_PER_UNIT, JUNCTIONS, NODES } from '../data/board.js';
-import { clamp, pathLength, pointsToPath, sampleAlongPath } from '../utils/geometry.js';
-import { BUILDING_FOOTPRINT, CITY_STREETS, PARK_BLOBS, TREE_CANOPY, WATER_PATH } from '../utils/mapDecor.js';
+import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { BUILDINGS, EDGES, JUNCTIONS, NODES } from '../data/board.js';
+import { pathLengthFeet, sampleAlongPathGeo } from '../utils/geo.js';
 import { buildManeuvers, currentInstruction } from '../utils/navigation.js';
-import { useBoardTransform } from '../hooks/useBoardTransform.js';
-import CompassControl, { COMPASS_CENTER } from './CompassControl.jsx';
 import InstructionBanner from './InstructionBanner.jsx';
 import ZoomControls from './ZoomControls.jsx';
 
-// How often the instruction countdown re-renders. The camera itself updates
-// every frame via direct DOM writes; this text doesn't need to, so it goes
-// through ordinary React state at a much cheaper cadence.
-const INSTRUCTION_UPDATE_MS = 150;
-
 // Turn-by-turn camera: closer than any overview fit, puck held low so most
 // of the screen shows the path ahead — Apple Maps' walking-nav framing.
-const NAV_SCALE = 2.6;
+// No heading-up rotation in this pass: Leaflet has no native map bearing,
+// and a CSS-transform rotate hack is exactly the kind of thing that needs
+// eyes-on testing to get right, which isn't available right now. This ships
+// a real, working north-up follow camera instead of a rotation hack no one
+// has seen render. See the chat for the trade-off and how to revisit it.
+const NAV_ZOOM = 19;
 const NAV_ANCHOR = { x: 0.5, y: 0.64 };
-// Simulated walking pace for the demo camera (world units/sec), clamped so
-// short and long routes both take a legible, not tedious, amount of time.
-const NAV_SECONDS_PER_UNIT = 1 / 55;
+const NAV_FT_PER_SEC = 65; // demo-compressed walking pace, not real-time
+const NAV_CAMERA_UPDATE_MS = 300;
+const INSTRUCTION_UPDATE_MS = 150;
+const OVERVIEW_PAD_FT = 60;
 
-function edgePath(edge) {
-  const a = NODES[edge.a];
-  const b = NODES[edge.b];
-  return pointsToPath([a, b]);
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Google/Apple-style teardrop marker, tip anchored at (x, y). Billboarded:
-// counter-rotated against the map's own rotation so the pin and its label
-// always read upright, the way every real map app renders place markers.
-// Position (translate) and billboard (rotate) are separate nested groups:
-// translate is static JSX, but rotate also gets written to directly by the
-// navigation camera loop every frame (billboardRef), so labels keep facing
-// up through a continuous rotation, not just on the renders React actually
-// runs (a plain dial drag re-renders; the nav camera intentionally doesn't).
-function Pin({ x, y, kind, label, counterRotate, billboardRef }) {
-  const fill =
+// Google/Apple-style teardrop marker built as a Leaflet divIcon (plain HTML,
+// not React — Leaflet owns this DOM node directly).
+function buildPinIcon(kind, label) {
+  const fillVar =
     kind === 'start' ? 'var(--pin-start)' : kind === 'end' ? 'var(--pin-end)' : kind === 'transit' ? 'var(--pin-transit)' : 'var(--pin-idle)';
-  const scale = kind === 'idle' ? 0.82 : 1;
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <g ref={billboardRef} transform={`rotate(${counterRotate})`}>
-        <g transform={`translate(${-12 * scale} ${-27 * scale}) scale(${scale})`} className="pin">
-          <path
-            d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9z"
-            fill={fill}
-            stroke="rgba(20,30,25,0.18)"
-            strokeWidth="0.5"
-          />
-          <circle cx="12" cy="9.2" r="3.6" fill="#ffffff" />
+  const scale = kind === 'idle' ? 0.85 : 1;
+  const pinSize = Math.round(30 * scale);
+  const width = 160;
+  const height = pinSize + 24;
+  const html = `
+    <div class="pin-icon-wrap">
+      <div class="pin-label${kind !== 'idle' ? ' pin-label-active' : ''}">${escapeHtml(label)}</div>
+      <svg width="${pinSize}" height="${pinSize}" viewBox="0 0 24 24" class="pin-icon-svg">
+        <path d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9z" fill="${fillVar}" stroke="rgba(20,30,25,0.18)" stroke-width="0.5" />
+        <circle cx="12" cy="9.2" r="3.6" fill="#ffffff" />
+      </svg>
+    </div>`;
+  return L.divIcon({ html, className: 'pin-icon-container', iconSize: [width, height], iconAnchor: [width / 2, height] });
+}
+
+const PUCK_ICON = L.divIcon({
+  html: `<div class="nav-puck">
+      <svg width="44" height="44" viewBox="-22 -22 44 44">
+        <circle r="9" fill="var(--map-accent)" stroke="#ffffff" stroke-width="3" />
+        <g class="puck-arrow">
+          <path d="M0 -22 L8 -8 L0 -12 L-8 -8 Z" fill="var(--map-accent)" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
         </g>
-        <text x={0} y={-34 * scale} textAnchor="middle" className={`pin-label${kind !== 'idle' ? ' pin-label-active' : ''}`}>
-          {label}
-        </text>
-      </g>
-    </g>
-  );
+      </svg>
+    </div>`,
+  className: 'nav-puck-container',
+  iconSize: [44, 44],
+  iconAnchor: [22, 22],
+});
+
+// Bridges react-leaflet's context (only readable from inside <MapContainer>)
+// back out to the parent, which needs the raw Leaflet map instance for
+// project/unproject and direct zoom/pan calls.
+function MapInstanceBridge({ onReady }) {
+  const map = useMap();
+  useEffect(() => {
+    onReady(map);
+  }, [map, onReady]);
+  return null;
 }
 
 export default function BoardMap({ route, startId, endId, navigating, destinationName }) {
-  const svgRef = useRef(null);
-  const groupRef = useRef(null);
-  const routePathRef = useRef(null);
-  const puckRef = useRef(null);
-  const pinBillboardRefs = useRef({});
-  const compassNeedleRef = useRef(null);
+  const mapRef = useRef(null);
+  const puckMarkerRef = useRef(null);
   const [instruction, setInstruction] = useState(null);
 
   const maneuvers = useMemo(() => (route ? buildManeuvers(route.points) : []), [route]);
+  const onNode = route ? new Set(route.nodeIds) : null;
 
-  const getViewportSize = useCallback(() => {
-    const el = svgRef.current;
-    if (!el) return { width: 1, height: 1 };
-    const rect = el.getBoundingClientRect();
-    return { width: rect.width, height: rect.height };
+  const handleMapReady = useCallback((map) => {
+    mapRef.current = map;
   }, []);
 
-  // The search card and HUD float over the canvas — fit routes into the
-  // area they leave clear, not the full viewport, or content hides beneath them.
-  const getSafeRect = useCallback(() => {
-    const { width, height } = getViewportSize();
-    const mobile = width <= 640;
-    const hudInset = 76;
-    if (mobile) {
-      const bottomInset = 250;
-      return { x: 0, y: 0, width, height: Math.max(140, height - bottomInset) };
-    }
-    const leftInset = 336;
-    return { x: leftInset, y: 0, width: Math.max(140, width - leftInset - hudInset), height };
-  }, [getViewportSize]);
-
-  const transform = useBoardTransform(getViewportSize, getSafeRect, groupRef);
-  const { current, currentRef, panBy, zoomBy, setRotateImmediate, fitToWorldPoints, followPoint } = transform;
-
-  const routeRef = useRef(route);
-  routeRef.current = route;
-
-  const refit = useCallback(() => {
-    const activeRoute = routeRef.current;
-    if (activeRoute && activeRoute.points.length) {
-      fitToWorldPoints(activeRoute.points);
-    } else {
-      fitToWorldPoints(BUILDINGS.map((b) => ({ x: b.x, y: b.y })), 150);
-    }
-  }, [fitToWorldPoints]);
-
-  useEffect(() => {
-    refit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Fit the whole pilot area on mount, and fit the resolved route whenever
+  // it changes — Leaflet's own fitBounds does the padding/easing natively,
+  // so the manual safe-rect math the old SVG board needed isn't needed here.
+  const fitOverview = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const points = route ? route.points : BUILDINGS;
+    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+    const mobile = map.getSize().x <= 640;
+    map.fitBounds(bounds, {
+      paddingTopLeft: mobile ? [16, 16] : [356, 16],
+      paddingBottomRight: mobile ? [76, 260] : [96, 16],
+      animate: true,
+    });
   }, [route]);
 
-  // Re-fit whenever the viewport itself changes size (resize, rotation,
-  // devtools panel, orientation change) — the previous fit is stale otherwise.
   useEffect(() => {
-    const el = svgRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    let first = true;
-    const observer = new ResizeObserver(() => {
-      if (first) {
-        first = false;
-        return;
-      }
-      refit();
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [refit]);
+    if (!navigating) fitOverview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, navigating]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return undefined;
+    const handle = () => {
+      if (!navigating) fitOverview();
+    };
+    map.on('resize', handle);
+    return () => map.off('resize', handle);
+  }, [fitOverview, navigating]);
 
   // Turn-by-turn simulation: no real GPS, so walk the resolved route at a
-  // fixed demo pace, driving the heading-up follow camera and the puck
-  // marker imperatively (same DOM-ref pattern as the transform loop) rather
-  // than through React state every frame.
+  // fixed demo pace, driving the follow camera, the puck, and the
+  // instruction countdown.
   const navRaf = useRef(null);
   useEffect(() => {
-    if (!navigating || !route || route.points.length < 2) return undefined;
+    const map = mapRef.current;
+    if (!navigating || !route || !map || route.points.length < 2) return undefined;
 
-    const totalLen = pathLength(route.points);
-    const duration = clamp(totalLen * NAV_SECONDS_PER_UNIT, 8, 45);
+    const totalLen = pathLengthFeet(route.points);
+    const duration = Math.min(45, Math.max(8, totalLen / NAV_FT_PER_SEC));
     const start = performance.now();
+    let lastCameraAt = 0;
     let lastInstructionAt = 0;
 
     const frame = (now) => {
       const elapsed = (now - start) / 1000;
       const t = Math.min(1, elapsed / duration);
-      const { pos, heading } = sampleAlongPath(route.points, t);
-      followPoint(pos, heading, NAV_SCALE, NAV_ANCHOR);
-      if (puckRef.current) {
-        puckRef.current.setAttribute('transform', `translate(${pos.x} ${pos.y}) rotate(${heading})`);
-      }
-      // The map group itself just rotated (via followPoint) by writing
-      // straight to the DOM, which never re-renders React — so anything
-      // billboarded against that rotation (pin labels, the compass needle)
-      // has to be counter-rotated here too, every frame, or it goes stale
-      // the moment navigation starts. Crucially this reads the map's own
-      // *actual, still-easing* rotation (currentRef), not the raw target
-      // heading — the camera eases into a turn more slowly than the puck's
-      // true heading changes, so billboarding against the target would
-      // make labels snap ahead of the map mid-turn instead of tracking it.
-      const liveRotate = currentRef.current.rotate;
-      for (const el of Object.values(pinBillboardRefs.current)) {
-        if (el) el.setAttribute('transform', `rotate(${-liveRotate})`);
-      }
-      if (compassNeedleRef.current) {
-        compassNeedleRef.current.setAttribute('transform', `rotate(${liveRotate} ${COMPASS_CENTER} ${COMPASS_CENTER})`);
+      const { pos, heading } = sampleAlongPathGeo(route.points, t);
+
+      if (puckMarkerRef.current) {
+        puckMarkerRef.current.setLatLng([pos.lat, pos.lng]);
+        const el = puckMarkerRef.current.getElement();
+        const arrow = el?.querySelector('.puck-arrow');
+        if (arrow) arrow.setAttribute('transform', `rotate(${heading})`);
       }
 
-      // The turn banner's countdown text is ordinary React state — it's a
-      // handful of DOM nodes, not the whole map, so it doesn't need the
-      // imperative treatment above. Still throttled well below 60fps since
-      // a foot-by-foot countdown isn't perceptible anyway.
+      if (now - lastCameraAt >= NAV_CAMERA_UPDATE_MS || t >= 1) {
+        lastCameraAt = now;
+        const size = map.getSize();
+        const zoom = NAV_ZOOM;
+        const puckPoint = map.project([pos.lat, pos.lng], zoom);
+        // Anchor the puck low on screen (NAV_ANCHOR) instead of dead
+        // center: setView always centers its target, so we instead center
+        // a "virtual" point offset from the puck by exactly the pixel gap
+        // between the viewport's true center and the anchor we want.
+        const dx = size.x / 2 - size.x * NAV_ANCHOR.x;
+        const dy = size.y / 2 - size.y * NAV_ANCHOR.y;
+        const virtualCenter = map.unproject(puckPoint.subtract([dx, dy]), zoom);
+        map.setView(virtualCenter, zoom, { animate: true, duration: (NAV_CAMERA_UPDATE_MS / 1000) * 1.15 });
+      }
+
       if (now - lastInstructionAt >= INSTRUCTION_UPDATE_MS || t >= 1) {
         lastInstructionAt = now;
-        const traveledUnits = t * totalLen;
-        const next = currentInstruction(maneuvers, traveledUnits);
-        setInstruction(next ? { ...next, remaining: next.remaining * FEET_PER_UNIT } : null);
+        const traveledFt = t * totalLen;
+        setInstruction(currentInstruction(maneuvers, traveledFt));
       }
 
       if (t < 1) navRaf.current = requestAnimationFrame(frame);
@@ -187,191 +171,93 @@ export default function BoardMap({ route, startId, endId, navigating, destinatio
       navRaf.current = null;
       setInstruction(null);
     };
-  }, [navigating, route, followPoint, currentRef, maneuvers]);
+  }, [navigating, route, maneuvers]);
 
-  // Leaving navigation: return to north-up and re-fit the overview.
+  // Leaving navigation: re-fit the overview.
   const wasNavigating = useRef(navigating);
   useEffect(() => {
-    if (wasNavigating.current && !navigating) {
-      setRotateImmediate(0);
-      refit();
-    }
+    if (wasNavigating.current && !navigating) fitOverview();
     wasNavigating.current = navigating;
-  }, [navigating, setRotateImmediate, refit]);
+  }, [navigating, fitOverview]);
 
-  useEffect(() => {
-    const el = routePathRef.current;
-    if (!el || !route) return;
-    const length = pathLength(route.points) || 1;
-    el.style.transition = 'none';
-    el.style.strokeDasharray = `${length}`;
-    el.style.strokeDashoffset = `${length}`;
-    // eslint-disable-next-line no-unused-expressions
-    el.getBoundingClientRect();
-    requestAnimationFrame(() => {
-      el.style.transition = 'stroke-dashoffset 900ms var(--ease-board)';
-      el.style.strokeDashoffset = '0';
-    });
-  }, [route]);
-
-  const dragState = useRef(null);
-  const onPointerDown = useCallback((e) => {
-    if (e.target.closest('[data-no-pan]')) return;
-    dragState.current = { x: e.clientX, y: e.clientY };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
-  const onPointerMove = useCallback((e) => {
-    if (!dragState.current) return;
-    const dx = e.clientX - dragState.current.x;
-    const dy = e.clientY - dragState.current.y;
-    dragState.current = { x: e.clientX, y: e.clientY };
-    panBy(dx, dy);
-  }, [panBy]);
-  const onPointerUp = useCallback((e) => {
-    dragState.current = null;
-    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }, []);
-
-  const onWheel = useCallback((e) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    zoomBy(factor);
-  }, [zoomBy]);
-
-  const onNode = route ? new Set(route.nodeIds) : null;
+  const initialCenter = [NODES.carnegie.lat, NODES.carnegie.lng];
 
   return (
     <div className="board-viewport">
-      <svg
-        ref={svgRef}
-        className="board-svg"
-        role="img"
-        aria-label="Map of the RPI ARN pilot area"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
-        onWheel={onWheel}
+      <MapContainer
+        center={initialCenter}
+        zoom={17}
+        zoomControl={false}
+        attributionControl={true}
+        className="board-map"
       >
-        <g ref={groupRef} className="board-group">
-          <rect x={-1200} y={-900} width={BOARD_VIEWBOX.width + 2400} height={BOARD_VIEWBOX.height + 1800} fill="var(--map-ground)" />
+        <MapInstanceBridge onReady={handleMapReady} />
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={20}
+        />
 
-          {/* distant city streets — context beyond the pilot area, unnamed */}
-          <g stroke="var(--map-border-strong)" strokeWidth={3} opacity={0.4}>
-            {CITY_STREETS.map((d) => (
-              <path key={d} d={d} fill="none" />
-            ))}
-          </g>
+        {/* idle walkway network */}
+        {EDGES.map((edge) => (
+          <Polyline
+            key={`${edge.a}-${edge.b}`}
+            positions={[
+              [NODES[edge.a].lat, NODES[edge.a].lng],
+              [NODES[edge.b].lat, NODES[edge.b].lng],
+            ]}
+            pathOptions={{
+              color: edge.stairs ? 'var(--map-path-stairs)' : 'var(--map-accent)',
+              weight: edge.stairs ? 3 : 4,
+              opacity: edge.stairs ? 0.55 : 0.35,
+              dashArray: edge.stairs ? '1 9' : undefined,
+              lineCap: 'round',
+            }}
+          />
+        ))}
 
-          {/* waterfront — the Approach side of campus, past EMPAC */}
-          <path d={WATER_PATH} fill="var(--map-water)" />
-          <path d={WATER_PATH} fill="none" stroke="var(--map-water-edge)" strokeWidth={2} opacity={0.5} />
+        {/* active route */}
+        {route && (
+          <>
+            <Polyline
+              positions={route.points.map((p) => [p.lat, p.lng])}
+              pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }}
+            />
+            <Polyline
+              positions={route.points.map((p) => [p.lat, p.lng])}
+              pathOptions={{ color: 'var(--map-accent)', weight: 5.5, lineCap: 'round', lineJoin: 'round' }}
+            />
+          </>
+        )}
 
-          {/* organic parkland */}
-          {PARK_BLOBS.map((d) => (
-            <path key={d} d={d} fill="var(--map-quad)" />
-          ))}
-          <g fill="var(--map-quad-canopy)">
-            {TREE_CANOPY.map((dot, i) => (
-              <circle key={i} cx={dot.x} cy={dot.y} r={dot.r} />
-            ))}
-          </g>
-
-          {/* walkway network */}
-          <g fill="none">
-            {EDGES.map((edge) => (
-              <path
-                key={`${edge.a}-${edge.b}-case`}
-                d={edgePath(edge)}
-                stroke="var(--map-path-casing)"
-                strokeWidth={edge.stairs ? 7 : 9}
-                strokeLinecap="round"
-              />
-            ))}
-            {EDGES.map((edge) => (
-              <path
-                key={`${edge.a}-${edge.b}`}
-                d={edgePath(edge)}
-                stroke={edge.stairs ? 'var(--map-path-stairs)' : 'var(--map-path)'}
-                strokeWidth={edge.stairs ? 3 : 4.5}
-                strokeDasharray={edge.stairs ? '1 9' : undefined}
-                strokeLinecap="round"
-              />
-            ))}
-          </g>
-
-          {/* building footprints — sit above the paths, so a walkway reads
-              as leading up to the building rather than cutting through it */}
-          <g className="footprints-shadow" fill="var(--map-building)">
-            {BUILDINGS.map((b) => (
-              <rect
-                key={b.id}
-                x={b.x - BUILDING_FOOTPRINT.width / 2}
-                y={b.y - BUILDING_FOOTPRINT.height / 2 - 6}
-                width={BUILDING_FOOTPRINT.width}
-                height={BUILDING_FOOTPRINT.height}
-                rx={6}
-              />
-            ))}
-          </g>
-
-          {/* active route */}
-          {route && (
-            <g className="route-shadow">
-              <path d={pointsToPath(route.points)} fill="none" stroke="#ffffff" strokeWidth={9} strokeLinejoin="round" strokeLinecap="round" />
-              <path
-                ref={routePathRef}
-                d={pointsToPath(route.points)}
-                fill="none"
-                stroke="var(--map-accent)"
-                strokeWidth={5.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            </g>
-          )}
-
-          {/* junction dots, only where the route passes through */}
-          {JUNCTIONS.filter((j) => onNode?.has(j.id)).map((j) => (
-            <circle key={j.id} cx={j.x} cy={j.y} r={4} fill="var(--map-accent)" stroke="#ffffff" strokeWidth={2} />
-          ))}
-
-          {/* building pins */}
-          <g className="pins-shadow">
-            {BUILDINGS.map((b) => {
-              const kind = b.id === startId ? 'start' : b.id === endId ? 'end' : onNode?.has(b.id) ? 'transit' : 'idle';
-              return (
-                <Pin
-                  key={b.id}
-                  x={b.x}
-                  y={b.y}
-                  kind={kind}
-                  label={b.name}
-                  counterRotate={-current.rotate}
-                  billboardRef={(el) => { pinBillboardRefs.current[b.id] = el; }}
-                />
-              );
+        {/* junction dots, only where the route passes through */}
+        {JUNCTIONS.filter((j) => onNode?.has(j.id)).map((j) => (
+          <Marker
+            key={j.id}
+            position={[j.lat, j.lng]}
+            icon={L.divIcon({
+              html: '<div class="junction-dot"></div>',
+              className: 'junction-dot-container',
+              iconSize: [10, 10],
+              iconAnchor: [5, 5],
             })}
-          </g>
+            interactive={false}
+          />
+        ))}
 
-          {/* live position puck — drawn pointing along world heading, so
-              the map's own heading-up rotation makes it point straight up */}
-          {navigating && route && (
-            <g ref={puckRef} className="nav-puck">
-              <circle r={9} fill="var(--map-accent)" stroke="#ffffff" strokeWidth={3} />
-              <path d="M0 -22 L8 -8 L0 -12 L-8 -8 Z" fill="var(--map-accent)" stroke="#ffffff" strokeWidth={1.5} strokeLinejoin="round" />
-            </g>
-          )}
-        </g>
-      </svg>
+        {/* building pins */}
+        {BUILDINGS.map((b) => {
+          const kind = b.id === startId ? 'start' : b.id === endId ? 'end' : onNode?.has(b.id) ? 'transit' : 'idle';
+          return <Marker key={b.id} position={[b.lat, b.lng]} icon={buildPinIcon(kind, b.name)} interactive={false} />;
+        })}
+
+        {navigating && route && <Marker ref={puckMarkerRef} position={[route.points[0].lat, route.points[0].lng]} icon={PUCK_ICON} interactive={false} />}
+      </MapContainer>
 
       {navigating && <InstructionBanner instruction={instruction} destinationName={destinationName} />}
 
       <div className="board-hud" data-no-pan>
-        <ZoomControls onZoomIn={() => zoomBy(1.25)} onZoomOut={() => zoomBy(1 / 1.25)} />
-        <CompassControl ref={compassNeedleRef} rotate={current.rotate} onRotate={setRotateImmediate} />
+        <ZoomControls onZoomIn={() => mapRef.current?.zoomIn()} onZoomOut={() => mapRef.current?.zoomOut()} />
       </div>
     </div>
   );

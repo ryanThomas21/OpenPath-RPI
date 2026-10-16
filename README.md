@@ -47,6 +47,12 @@ Open <http://localhost:5173>. Vite proxies `/api` requests to Django on port
 8000; if Django is stopped, the page explains how to start the API and offers
 a retry.
 
+## Map data
+
+The mock campus map, its format, and the labeled test scenarios (stairs,
+accessible entrances, unreachable areas, no accessible route) are described in
+[backend/locations/DATASET.md](backend/locations/DATASET.md).
+
 # Instructions:
 1. Choose or receive a GitHub issue.
 2. Create a branch for that issue.

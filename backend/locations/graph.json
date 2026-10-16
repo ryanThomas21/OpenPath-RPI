@@ -11,13 +11,15 @@
           "id": "carnegie-e1",
           "lat": 42.7304826,
           "lng": -73.6833129,
-          "label": "Northwest"
+          "label": "Northwest",
+          "accessible": null
         },
         {
           "id": "carnegie-e2",
           "lat": 42.7304039,
           "lng": -73.6830758,
-          "label": "Southeast"
+          "label": "Southeast",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -33,20 +35,23 @@
           "id": "walker-e1",
           "lat": 42.7308502,
           "lng": -73.6822893,
-          "label": "East"
+          "label": "East",
+          "accessible": null
         },
         {
           "id": "walker-e2",
           "lat": 42.7309589,
           "lng": -73.6821182,
           "label": "East (Accessible)",
-          "wheelchair": true
+          "wheelchair": true,
+          "accessible": true
         },
         {
           "id": "walker-e3",
           "lat": 42.7306746,
           "lng": -73.6827277,
-          "label": "Southwest"
+          "label": "Southwest",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -62,13 +67,15 @@
           "id": "sage-e1",
           "lat": 42.7307679,
           "lng": -73.6816787,
-          "label": "South"
+          "label": "South",
+          "accessible": null
         },
         {
           "id": "sage-e2",
           "lat": 42.7309716,
           "lng": -73.681183,
-          "label": "East"
+          "label": "East",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -84,7 +91,8 @@
           "id": "pittsburgh-e1",
           "lat": 42.7310446,
           "lng": -73.6833374,
-          "label": "South"
+          "label": "South",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -100,25 +108,29 @@
           "id": "empac-e1",
           "lat": 42.7285344,
           "lng": -73.6836701,
-          "label": "Southeast"
+          "label": "Southeast",
+          "accessible": null
         },
         {
           "id": "empac-e2",
           "lat": 42.7285846,
           "lng": -73.6839246,
-          "label": "South"
+          "label": "South",
+          "accessible": null
         },
         {
           "id": "empac-e3",
           "lat": 42.7286302,
           "lng": -73.6841558,
-          "label": "Southwest"
+          "label": "Southwest",
+          "accessible": null
         },
         {
           "id": "empac-e4",
           "lat": 42.7291589,
           "lng": -73.6836622,
-          "label": "North"
+          "label": "North",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -134,25 +146,29 @@
           "id": "westhall-e1",
           "lat": 42.7316936,
           "lng": -73.6827275,
-          "label": "East"
+          "label": "East",
+          "accessible": null
         },
         {
           "id": "westhall-e2",
           "lat": 42.7317588,
           "lng": -73.6829431,
-          "label": "Northeast"
+          "label": "Northeast",
+          "accessible": null
         },
         {
           "id": "westhall-e3",
           "lat": 42.7317388,
           "lng": -73.6834818,
-          "label": "West"
+          "label": "West",
+          "accessible": null
         },
         {
           "id": "westhall-e4",
           "lat": 42.7315635,
           "lng": -73.683056,
-          "label": "South"
+          "label": "South",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -168,7 +184,8 @@
           "id": "amoseaton-e1",
           "lat": 42.7301741,
           "lng": -73.6822909,
-          "label": "East"
+          "label": "East",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -184,7 +201,8 @@
           "id": "lally-e1",
           "lat": 42.7301234,
           "lng": -73.6818871,
-          "label": "North"
+          "label": "North",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -200,7 +218,8 @@
           "id": "library-e1",
           "lat": 42.7293023,
           "lng": -73.6824149,
-          "label": "Southeast"
+          "label": "Southeast",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -216,19 +235,22 @@
           "id": "vcc-e1",
           "lat": 42.7290895,
           "lng": -73.6816222,
-          "label": "Southeast"
+          "label": "Southeast",
+          "accessible": null
         },
         {
           "id": "vcc-e2",
           "lat": 42.7292812,
           "lng": -73.6822042,
-          "label": "West"
+          "label": "West",
+          "accessible": null
         },
         {
           "id": "vcc-e3",
           "lat": 42.7293412,
           "lng": -73.681573,
-          "label": "Northeast"
+          "label": "Northeast",
+          "accessible": null
         }
       ],
       "type": "location"
@@ -466,6 +488,17 @@
       "destination_entrance_id": "empac-e4",
       "avoid_stairs": false,
       "expect": "route"
+    },
+    {
+      "id": "accessible-entrance",
+      "case": "accessible-entrance",
+      "description": "Carnegie to Walker Lab's accessible east entrance (walker-e2) with stairs avoided.",
+      "start_id": "carnegie",
+      "destination_id": "walker",
+      "destination_entrance_id": "walker-e2",
+      "avoid_stairs": true,
+      "expect": "route",
+      "used_stairs": false
     }
   ]
 }

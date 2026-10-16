@@ -86,7 +86,7 @@ class RouteViewTests(APITestCase):
 class DatasetScenarioTests(APITestCase):
     """Runs every labeled edge case in graph.json's "scenarios" list through the route API."""
 
-    REQUIRED_CASES = {"stairs", "multiple-entrances"}
+    REQUIRED_CASES = {"stairs", "multiple-entrances", "accessible-entrance"}
 
     @classmethod
     def setUpTestData(cls):
@@ -95,6 +95,24 @@ class DatasetScenarioTests(APITestCase):
 
     def test_required_cases_are_labeled(self):
         self.assertTrue(self.REQUIRED_CASES <= {scenario["case"] for scenario in self.scenarios})
+
+    def test_every_entrance_has_an_accessibility_flag(self):
+        # true = accessible, false = not accessible, null = not yet verified (never assume accessible)
+        for location in self.locations.values():
+            for entrance in location["entrances"]:
+                with self.subTest(entrance=entrance["id"]):
+                    self.assertIn("accessible", entrance)
+                    self.assertIn(entrance["accessible"], (True, False, None))
+
+    def test_accessible_entrance_scenarios_target_accessible_entrances(self):
+        for scenario in self.scenarios:
+            if scenario["case"] != "accessible-entrance":
+                continue
+            with self.subTest(scenario=scenario["id"]):
+                entrance_id = scenario["destination_entrance_id"]
+                entrance = next(item for item in self.locations[scenario["destination_id"]]["entrances"]
+                                if item["id"] == entrance_id)
+                self.assertIs(entrance["accessible"], True)
 
     def test_scenarios_reference_existing_locations_and_entrances(self):
         ids = [scenario["id"] for scenario in self.scenarios]

@@ -81,3 +81,60 @@ class RouteViewTests(APITestCase):
     def test_missing_fields_returns_400(self):
         response = self.client.post("/api/route/", {}, format="json")
         self.assertEqual(response.status_code, 400)
+
+
+class DatasetScenarioTests(APITestCase):
+    """Runs every labeled edge case in graph.json's "scenarios" list through the route API."""
+
+    REQUIRED_CASES = {"stairs", "multiple-entrances"}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.scenarios = get_graph()["scenarios"]
+        cls.locations = {location["id"]: location for location in get_locations()}
+
+    def test_required_cases_are_labeled(self):
+        self.assertTrue(self.REQUIRED_CASES <= {scenario["case"] for scenario in self.scenarios})
+
+    def test_scenarios_reference_existing_locations_and_entrances(self):
+        ids = [scenario["id"] for scenario in self.scenarios]
+        self.assertEqual(len(ids), len(set(ids)), "scenario ids must be unique")
+        for scenario in self.scenarios:
+            with self.subTest(scenario=scenario["id"]):
+                self.assertIn(scenario["expect"], {"route", "no_route"})
+                for end in ("start", "destination"):
+                    location = self.locations.get(scenario[f"{end}_id"])
+                    self.assertIsNotNone(location, f"unknown {end}_id")
+                    entrance_id = scenario.get(f"{end}_entrance_id")
+                    if entrance_id:
+                        self.assertIn(entrance_id, [item["id"] for item in location["entrances"]])
+
+    def test_scenarios_route_as_labeled(self):
+        for scenario in self.scenarios:
+            with self.subTest(scenario=scenario["id"]):
+                response = self.client.post(
+                    "/api/route/",
+                    {
+                        field: scenario[field]
+                        for field in ("start_id", "destination_id", "start_entrance_id",
+                                      "destination_entrance_id", "avoid_stairs")
+                        if field in scenario
+                    },
+                    format="json",
+                )
+                if scenario["expect"] == "no_route":
+                    self.assertEqual(response.status_code, 404)
+                    if "detail" in scenario:
+                        self.assertEqual(response.data["detail"], scenario["detail"])
+                    continue
+
+                self.assertEqual(response.status_code, 200)
+                if "used_stairs" in scenario:
+                    self.assertEqual(response.data["usedStairs"], scenario["used_stairs"])
+                for end, point in (("start", response.data["points"][0]),
+                                   ("destination", response.data["points"][-1])):
+                    entrance_id = scenario.get(f"{end}_entrance_id")
+                    if entrance_id:
+                        entrance = next(item for item in self.locations[scenario[f"{end}_id"]]["entrances"]
+                                        if item["id"] == entrance_id)
+                        self.assertEqual((point["lat"], point["lng"]), (entrance["lat"], entrance["lng"]))

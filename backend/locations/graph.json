@@ -434,5 +434,38 @@
       "b": "library",
       "type": "stairs"
     }
+  ],
+  "scenarios": [
+    {
+      "id": "stairs-shortcut",
+      "case": "stairs",
+      "description": "Carnegie to Library: the shortest route uses the Carnegie-Library stairs.",
+      "start_id": "carnegie",
+      "destination_id": "library",
+      "avoid_stairs": false,
+      "expect": "route",
+      "used_stairs": true
+    },
+    {
+      "id": "stairs-avoided",
+      "case": "stairs",
+      "description": "Carnegie to Library with stairs avoided: the route detours through j5 instead.",
+      "start_id": "carnegie",
+      "destination_id": "library",
+      "avoid_stairs": true,
+      "expect": "route",
+      "used_stairs": false
+    },
+    {
+      "id": "multi-entrance-endpoints",
+      "case": "multiple-entrances",
+      "description": "Carnegie (2 entrances) to EMPAC (4 entrances): the chosen entrances become the route's endpoints.",
+      "start_id": "carnegie",
+      "start_entrance_id": "carnegie-e2",
+      "destination_id": "empac",
+      "destination_entrance_id": "empac-e4",
+      "avoid_stairs": false,
+      "expect": "route"
+    }
   ]
 }

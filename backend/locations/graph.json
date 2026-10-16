@@ -329,6 +329,31 @@
       "elevation": 63,
       "type": "path",
       "mock": true
+    },
+    {
+      "id": "mock-overlook",
+      "name": "Mock: Stairs-only Overlook",
+      "lat": 42.7297,
+      "lng": -73.6811,
+      "elevation": 70,
+      "entrances": [
+        {
+          "id": "mock-overlook-e1",
+          "lat": 42.7297,
+          "lng": -73.68117,
+          "label": "West",
+          "accessible": false
+        },
+        {
+          "id": "mock-overlook-e2",
+          "lat": 42.72975,
+          "lng": -73.6811,
+          "label": "North",
+          "accessible": true
+        }
+      ],
+      "type": "location",
+      "mock": true
     }
   ],
   "edges": [
@@ -487,6 +512,12 @@
       "b": "mock-annex-j1",
       "type": "path",
       "mock": true
+    },
+    {
+      "a": "mock-overlook",
+      "b": "j6",
+      "type": "stairs",
+      "mock": true
     }
   ],
   "scenarios": [
@@ -539,6 +570,27 @@
       "start_id": "carnegie",
       "destination_id": "mock-annex",
       "avoid_stairs": false,
+      "expect": "no_route",
+      "detail": "No available route connects these locations."
+    },
+    {
+      "id": "overlook-by-stairs",
+      "case": "stairs",
+      "description": "Carnegie to Mock: Stairs-only Overlook with stairs allowed: reachable, but only by the overlook's stairs.",
+      "start_id": "carnegie",
+      "destination_id": "mock-overlook",
+      "avoid_stairs": false,
+      "expect": "route",
+      "used_stairs": true
+    },
+    {
+      "id": "no-accessible-route",
+      "case": "no-accessible-route",
+      "description": "Carnegie to Mock: Stairs-only Overlook's accessible north entrance with stairs avoided: no route, because stairs are the only way in.",
+      "start_id": "carnegie",
+      "destination_id": "mock-overlook",
+      "destination_entrance_id": "mock-overlook-e2",
+      "avoid_stairs": true,
       "expect": "no_route",
       "detail": "No available route connects these locations."
     }

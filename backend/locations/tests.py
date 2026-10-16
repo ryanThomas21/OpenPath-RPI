@@ -86,7 +86,8 @@ class RouteViewTests(APITestCase):
 class DatasetScenarioTests(APITestCase):
     """Runs every labeled edge case in graph.json's "scenarios" list through the route API."""
 
-    REQUIRED_CASES = {"stairs", "multiple-entrances", "accessible-entrance", "disconnected"}
+    REQUIRED_CASES = {"stairs", "multiple-entrances", "accessible-entrance", "disconnected",
+                      "no-accessible-route"}
 
     @classmethod
     def setUpTestData(cls):

@@ -1,6 +1,10 @@
+import copy
+from unittest import TestCase
+
 from rest_framework.test import APITestCase
 
 from .graph import get_graph, get_locations
+from .validate_graph import validate
 
 
 class MapGraphViewTests(APITestCase):
@@ -185,3 +189,81 @@ class DatasetScenarioTests(APITestCase):
                         entrance = next(item for item in self.locations[scenario[f"{end}_id"]]["entrances"]
                                         if item["id"] == entrance_id)
                         self.assertEqual((point["lat"], point["lng"]), (entrance["lat"], entrance["lng"]))
+
+
+class ValidateGraphTests(TestCase):
+    """validate_graph.py should pass the real dataset and catch each kind of data mistake."""
+
+    BASE = {
+        "nodes": [
+            {"id": "hall", "name": "Hall", "lat": 0, "lng": 0, "type": "location",
+             "entrances": [{"id": "hall-e1", "lat": 0, "lng": 0, "label": "Main", "accessible": True}]},
+            {"id": "lab", "name": "Lab", "lat": 0, "lng": 1, "type": "location",
+             "entrances": [{"id": "lab-e1", "lat": 0, "lng": 1, "label": "Main", "accessible": None}]},
+            {"id": "j1", "lat": 0, "lng": 0.5, "type": "path"},
+        ],
+        "edges": [
+            {"a": "hall", "b": "j1", "type": "path"},
+            {"a": "j1", "b": "lab", "type": "path"},
+        ],
+        "scenarios": [
+            {"id": "hall-to-lab", "case": "stairs", "start_id": "hall", "destination_id": "lab", "expect": "route"},
+        ],
+    }
+
+    def graph(self):
+        return copy.deepcopy(self.BASE)
+
+    def assert_error(self, graph, fragment):
+        errors, _ = validate(graph)
+        self.assertTrue(any(fragment in error for error in errors), f"{fragment!r} not in {errors}")
+
+    def test_real_dataset_has_no_errors(self):
+        self.assertEqual(validate(get_graph())[0], [])
+
+    def test_valid_example_has_no_errors(self):
+        self.assertEqual(validate(self.graph())[0], [])
+
+    def test_catches_dangling_edge(self):
+        graph = self.graph()
+        graph["edges"].append({"a": "lab", "b": "gym", "type": "path"})
+        self.assert_error(graph, "points at missing node 'gym'")
+
+    def test_catches_duplicate_ids(self):
+        graph = self.graph()
+        graph["nodes"].append(copy.deepcopy(graph["nodes"][2]))
+        graph["nodes"][1]["entrances"][0]["id"] = "hall-e1"
+        self.assert_error(graph, "duplicate node id: j1")
+        self.assert_error(graph, "duplicate entrance id: hall-e1")
+
+    def test_catches_building_without_entrances(self):
+        graph = self.graph()
+        graph["nodes"][1]["entrances"] = []
+        self.assert_error(graph, "building lab: has no entrances")
+
+    def test_catches_entrance_without_accessibility_flag(self):
+        graph = self.graph()
+        del graph["nodes"][0]["entrances"][0]["accessible"]
+        self.assert_error(graph, "entrance hall-e1: missing 'accessible'")
+
+    def test_catches_scenario_with_unknown_location(self):
+        graph = self.graph()
+        graph["scenarios"][0]["destination_id"] = "gym"
+        self.assert_error(graph, "unknown destination_id 'gym'")
+
+    def test_real_disconnected_node_is_an_error_but_mock_one_is_reported(self):
+        graph = self.graph()
+        graph["edges"] = graph["edges"][:1]  # cuts lab off from campus
+        self.assert_error(graph, "unreachable from campus (not marked mock): lab")
+
+        graph["nodes"][1]["mock"] = True
+        errors, notes = validate(graph)
+        self.assertEqual(errors, [])
+        self.assertIn("intentional disconnected area (mock): lab", notes)
+
+    def test_stairs_only_location_is_reported_not_an_error(self):
+        graph = self.graph()
+        graph["edges"][1]["type"] = "stairs"
+        errors, notes = validate(graph)
+        self.assertEqual(errors, [])
+        self.assertIn("no stairs-free route from campus (real): lab", notes)

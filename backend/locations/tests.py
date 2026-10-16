@@ -4,7 +4,7 @@ from unittest import TestCase
 from rest_framework.test import APITestCase
 
 from .graph import get_graph, get_locations
-from .validate_graph import validate
+from .validate_graph import components, validate
 
 
 class MapGraphViewTests(APITestCase):
@@ -103,27 +103,8 @@ class DatasetScenarioTests(APITestCase):
 
     def test_only_mock_nodes_are_disconnected_from_campus(self):
         graph = get_graph()
-        neighbors = {node["id"]: set() for node in graph["nodes"]}
-        for edge in graph["edges"]:
-            neighbors[edge["a"]].add(edge["b"])
-            neighbors[edge["b"]].add(edge["a"])
-
-        components, seen = [], set()
-        for node_id in neighbors:
-            if node_id in seen:
-                continue
-            component, stack = set(), [node_id]
-            while stack:
-                current = stack.pop()
-                if current not in component:
-                    component.add(current)
-                    stack.extend(neighbors[current] - component)
-            seen |= component
-            components.append(component)
-
-        campus = max(components, key=len)
+        campus, *islands = components(graph)
         mock_ids = {node["id"] for node in graph["nodes"] if node.get("mock")}
-        islands = [component for component in components if component is not campus]
         self.assertTrue(islands, "the dataset should contain an intentional disconnected area")
         for island in islands:
             with self.subTest(island=sorted(island)):

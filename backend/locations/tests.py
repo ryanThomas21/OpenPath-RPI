@@ -86,7 +86,7 @@ class RouteViewTests(APITestCase):
 class DatasetScenarioTests(APITestCase):
     """Runs every labeled edge case in graph.json's "scenarios" list through the route API."""
 
-    REQUIRED_CASES = {"stairs", "multiple-entrances", "accessible-entrance"}
+    REQUIRED_CASES = {"stairs", "multiple-entrances", "accessible-entrance", "disconnected"}
 
     @classmethod
     def setUpTestData(cls):
@@ -95,6 +95,34 @@ class DatasetScenarioTests(APITestCase):
 
     def test_required_cases_are_labeled(self):
         self.assertTrue(self.REQUIRED_CASES <= {scenario["case"] for scenario in self.scenarios})
+
+    def test_only_mock_nodes_are_disconnected_from_campus(self):
+        graph = get_graph()
+        neighbors = {node["id"]: set() for node in graph["nodes"]}
+        for edge in graph["edges"]:
+            neighbors[edge["a"]].add(edge["b"])
+            neighbors[edge["b"]].add(edge["a"])
+
+        components, seen = [], set()
+        for node_id in neighbors:
+            if node_id in seen:
+                continue
+            component, stack = set(), [node_id]
+            while stack:
+                current = stack.pop()
+                if current not in component:
+                    component.add(current)
+                    stack.extend(neighbors[current] - component)
+            seen |= component
+            components.append(component)
+
+        campus = max(components, key=len)
+        mock_ids = {node["id"] for node in graph["nodes"] if node.get("mock")}
+        islands = [component for component in components if component is not campus]
+        self.assertTrue(islands, "the dataset should contain an intentional disconnected area")
+        for island in islands:
+            with self.subTest(island=sorted(island)):
+                self.assertLessEqual(island, mock_ids, "real nodes are unreachable from campus")
 
     def test_every_entrance_has_an_accessibility_flag(self):
         # true = accessible, false = not accessible, null = not yet verified (never assume accessible)

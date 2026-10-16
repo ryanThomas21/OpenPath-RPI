@@ -303,6 +303,32 @@
       "lng": -73.6834809,
       "elevation": 8,
       "type": "path"
+    },
+    {
+      "id": "mock-annex",
+      "name": "Mock: Unreachable Annex",
+      "lat": 42.7313,
+      "lng": -73.681,
+      "elevation": 64,
+      "entrances": [
+        {
+          "id": "mock-annex-e1",
+          "lat": 42.73125,
+          "lng": -73.68105,
+          "label": "South",
+          "accessible": true
+        }
+      ],
+      "type": "location",
+      "mock": true
+    },
+    {
+      "id": "mock-annex-j1",
+      "lat": 42.7311,
+      "lng": -73.6812,
+      "elevation": 63,
+      "type": "path",
+      "mock": true
     }
   ],
   "edges": [
@@ -455,6 +481,12 @@
       "a": "empac",
       "b": "library",
       "type": "stairs"
+    },
+    {
+      "a": "mock-annex",
+      "b": "mock-annex-j1",
+      "type": "path",
+      "mock": true
     }
   ],
   "scenarios": [
@@ -499,6 +531,16 @@
       "avoid_stairs": true,
       "expect": "route",
       "used_stairs": false
+    },
+    {
+      "id": "unreachable-annex",
+      "case": "disconnected",
+      "description": "Carnegie to Mock: Unreachable Annex: the annex and its walkway are not connected to the rest of the map, so no route exists even with stairs allowed.",
+      "start_id": "carnegie",
+      "destination_id": "mock-annex",
+      "avoid_stairs": false,
+      "expect": "no_route",
+      "detail": "No available route connects these locations."
     }
   ]
 }

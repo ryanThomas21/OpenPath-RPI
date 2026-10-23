@@ -3,6 +3,7 @@ from unittest import TestCase
 
 from rest_framework.test import APITestCase
 
+from .edge_calculator import fill_paths, measure_edge
 from .graph import get_graph, get_locations
 from .validate_graph import components, validate
 
@@ -248,3 +249,49 @@ class ValidateGraphTests(TestCase):
         errors, notes = validate(graph)
         self.assertEqual(errors, [])
         self.assertIn("no stairs-free route from campus (real): lab", notes)
+
+
+class EdgeCalculatorTests(TestCase):
+    def locations(self):
+        return {
+            "L01": {"id": "L01", "name": "Hall", "entrances": [
+                {"id": "L01A", "coordinates": [42.7300, -73.6800], "elevation": 60.0},
+                {"id": "L01B", "coordinates": [42.7320, -73.6800], "elevation": 64.0},
+            ]},
+            "N001": {"id": "N001", "coordinates": [42.7310, -73.6800], "elevation": 62.0},
+            "N002": {"id": "N002", "coordinates": [42.7300, -73.6800], "elevation": 60.0},
+        }
+
+    def edge(self, from_id, to_id, distance=None):
+        return {"from": from_id, "to": to_id, "distance": distance,
+                "features": {"paved": True, "stairs": False, "ramp": False,
+                             "closed": False, "gradient": 0.0}}
+
+    def test_measures_distance_and_signed_gradient(self):
+        distance, gradient = measure_edge(self.locations(), "N002", "N001")
+        self.assertAlmostEqual(distance, 111.19, places=1)  # 0.001 deg of latitude
+        self.assertAlmostEqual(gradient, 1.03, places=2)  # 2 m up over ~111 m
+        _, downhill = measure_edge(self.locations(), "N001", "N002")
+        self.assertAlmostEqual(downhill, -gradient)
+
+    def test_building_uses_entrance_closest_to_other_end(self):
+        locations = self.locations()
+        locations["N001"]["coordinates"] = [42.7319, -73.6800]  # next to L01B
+        distance, gradient = measure_edge(locations, "L01", "N001")
+        self.assertLess(distance, 12)
+        self.assertLess(gradient, 0)  # L01B (64 m) down to N001 (62 m)
+
+    def test_fills_missing_distance_and_keeps_measured_one(self):
+        paths = {"E0001": self.edge("N002", "N001"),
+                 "E0002": self.edge("N001", "L01", distance=150.0)}
+        self.assertEqual(fill_paths(self.locations(), paths), {})
+        self.assertEqual(paths["E0001"]["distance"], 111.19)
+        self.assertEqual(paths["E0002"]["distance"], 150.0)
+        self.assertEqual(paths["E0001"]["features"]["gradient"], 1.03)
+        self.assertTrue(paths["E0001"]["features"]["paved"])
+
+    def test_reports_unknown_node_and_leaves_edge_alone(self):
+        paths = {"E0001": self.edge("N001", "N999")}
+        self.assertEqual(fill_paths(self.locations(), paths),
+                         {"E0001": "unknown node id 'N999'"})
+        self.assertIsNone(paths["E0001"]["distance"])
